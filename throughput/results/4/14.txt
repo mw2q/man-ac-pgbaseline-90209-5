@@ -1,0 +1,39 @@
+BEGIN;
+BEGIN
+EXPLAIN (ANALYZE, BUFFERS)
+select
+	100.00 * sum(case
+		when p_type like 'PROMO%'
+			then l_extendedprice * (1 - l_discount)
+		else 0
+	end) / sum(l_extendedprice * (1 - l_discount)) as promo_revenue
+from
+	lineitem,
+	part
+where
+	l_partkey = p_partkey
+	and l_shipdate >= date '1994-03-01'
+	and l_shipdate < cast(date '1994-03-01' + interval '1 month' as date);
+                                                                               QUERY PLAN                                                                                
+-------------------------------------------------------------------------------------------------------------------------------------------------------------------------
+ Aggregate  (cost=1180546.51..1180546.53 rows=1 width=29) (actual time=40565.931..40565.931 rows=1 loops=1)
+   Buffers: shared hit=172377 read=283351
+   ->  Hash Join  (cost=102173.51..1166791.20 rows=786018 width=29) (actual time=6573.135..39736.239 rows=773474 loops=1)
+         Hash Cond: (lineitem.l_partkey = part.p_partkey)
+         Buffers: shared hit=172377 read=283351
+         ->  Bitmap Heap Scan on lineitem  (cost=16651.51..1063583.79 rows=786018 width=12) (actual time=1040.694..30019.686 rows=773474 loops=1)
+               Recheck Cond: ((l_shipdate >= '1994-03-01'::date) AND (l_shipdate < '1994-04-01'::date))
+               Buffers: shared hit=166539 read=248664
+               ->  Bitmap Index Scan on lineitem_l_shipdate_l_suppkey__idx  (cost=0.00..16455.01 rows=786018 width=0) (actual time=835.118..835.118 rows=775866 loops=1)
+                     Index Cond: ((l_shipdate >= '1994-03-01'::date) AND (l_shipdate < '1994-04-01'::date))
+                     Buffers: shared read=2116
+         ->  Hash  (cost=60522.00..60522.00 rows=2000000 width=25) (actual time=5530.776..5530.776 rows=2000000 loops=1)
+               Buckets: 262144  Batches: 1  Memory Usage: 115519kB
+               Buffers: shared hit=5835 read=34687
+               ->  Seq Scan on part  (cost=0.00..60522.00 rows=2000000 width=25) (actual time=0.020..4275.123 rows=2000000 loops=1)
+                     Buffers: shared hit=5835 read=34687
+ Total runtime: 40598.624 ms
+(17 rows)
+
+COMMIT;
+COMMIT

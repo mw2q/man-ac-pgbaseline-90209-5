@@ -1,0 +1,50 @@
+BEGIN;
+BEGIN
+EXPLAIN
+select
+	l_orderkey,
+	sum(l_extendedprice * (1 - l_discount)) as revenue,
+	o_orderdate,
+	o_shippriority
+from
+	customer,
+	orders,
+	lineitem
+where
+	c_mktsegment = 'HOUSEHOLD'
+	and c_custkey = o_custkey
+	and l_orderkey = o_orderkey
+	and o_orderdate < date '1995-03-09'
+	and l_shipdate > date '1995-03-09'
+group by
+	l_orderkey,
+	o_orderdate,
+	o_shippriority
+order by
+	revenue desc,
+	o_orderdate
+LIMIT 10;
+                                                                     QUERY PLAN                                                                     
+----------------------------------------------------------------------------------------------------------------------------------------------------
+ Limit  (cost=2738208.20..2738208.22 rows=10 width=20)
+   ->  Sort  (cost=2738208.20..2746005.05 rows=3118740 width=20)
+         Sort Key: (sum((lineitem.l_extendedprice * (1::double precision - lineitem.l_discount)))), orders.o_orderdate
+         ->  HashAggregate  (cost=2639625.94..2670813.34 rows=3118740 width=20)
+               ->  Hash Join  (cost=623086.04..2592844.84 rows=3118740 width=20)
+                     Hash Cond: (lineitem.l_orderkey = orders.o_orderkey)
+                     ->  Seq Scan on lineitem  (cost=0.00..1817036.65 rows=32409268 width=12)
+                           Filter: (l_shipdate > '1995-03-09'::date)
+                     ->  Hash  (cost=605024.91..605024.91 rows=1444890 width=12)
+                           ->  Hash Join  (cost=49676.60..605024.91 rows=1444890 width=12)
+                                 Hash Cond: (orders.o_custkey = customer.c_custkey)
+                                 ->  Seq Scan on orders  (cost=0.00..441209.30 rows=7250190 width=16)
+                                       Filter: (o_orderdate < '1995-03-09'::date)
+                                 ->  Hash  (cost=45939.91..45939.91 rows=298935 width=4)
+                                       ->  Bitmap Heap Scan on customer  (cost=6925.23..45939.91 rows=298935 width=4)
+                                             Recheck Cond: (c_mktsegment = 'HOUSEHOLD'::bpchar)
+                                             ->  Bitmap Index Scan on customer_c_mktsegment_c_custkey_idx  (cost=0.00..6850.49 rows=298935 width=0)
+                                                   Index Cond: (c_mktsegment = 'HOUSEHOLD'::bpchar)
+(18 rows)
+
+COMMIT;
+COMMIT

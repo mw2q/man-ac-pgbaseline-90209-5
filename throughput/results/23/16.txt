@@ -1,0 +1,71 @@
+BEGIN;
+BEGIN
+EXPLAIN (ANALYZE, BUFFERS)
+select
+	p_brand,
+	p_type,
+	p_size,
+	count(distinct ps_suppkey) as supplier_cnt
+from
+	partsupp,
+	part
+where
+	p_partkey = ps_partkey
+	and p_brand <> 'Brand#24'
+	and p_type not like 'LARGE ANODIZED%'
+	and p_size in (38, 21, 23, 32, 33, 8, 47, 31)
+	and ps_suppkey not in (
+		select
+			s_suppkey
+		from
+			supplier
+		where
+			s_comment like '%Customer%Complaints%'
+	)
+group by
+	p_brand,
+	p_type,
+	p_size
+order by
+	supplier_cnt desc,
+	p_brand,
+	p_type,
+	p_size;
+                                                                               QUERY PLAN                                                                               
+------------------------------------------------------------------------------------------------------------------------------------------------------------------------
+ Sort  (cost=456025.83..456094.99 rows=27666 width=40) (actual time=56615.080..56618.325 rows=27840 loops=1)
+   Sort Key: (count(DISTINCT partsupp.ps_suppkey)), part.p_brand, part.p_type, part.p_size
+   Sort Method: quicksort  Memory: 2968kB
+   Buffers: shared hit=163504 read=48946 written=13
+   ->  GroupAggregate  (cost=446330.62..453984.65 rows=27666 width=40) (actual time=55193.060..56198.390 rows=27840 loops=1)
+         Buffers: shared hit=163488 read=48946 written=13
+         ->  Sort  (cost=446330.62..447806.09 rows=590190 width=40) (actual time=55192.941..55512.972 rows=1187487 loops=1)
+               Sort Key: part.p_brand, part.p_type, part.p_size
+               Sort Method: quicksort  Memory: 141925kB
+               Buffers: shared hit=163488 read=48946 written=13
+               ->  Hash Join  (cost=57898.59..389758.49 rows=590190 width=40) (actual time=4434.118..21168.028 rows=1187487 loops=1)
+                     Hash Cond: (partsupp.ps_partkey = part.p_partkey)
+                     Buffers: shared hit=163488 read=48946 written=13
+                     ->  Seq Scan on partsupp  (cost=8.48..270966.48 rows=4000000 width=8) (actual time=2.533..9324.562 rows=7995520 loops=1)
+                           Filter: (NOT (hashed SubPlan 1))
+                           Rows Removed by Filter: 4480
+                           Buffers: shared hit=161156 read=9859 written=2
+                           SubPlan 1
+                             ->  Index Scan using supplier_s_suppkey_idx_like on supplier  (cost=0.00..8.45 rows=10 width=4) (actual time=0.682..2.440 rows=56 loops=1)
+                                   Buffers: shared hit=55 read=2
+                     ->  Hash  (cost=54201.42..54201.42 rows=295095 width=40) (actual time=4431.261..4431.261 rows=297028 loops=1)
+                           Buckets: 32768  Batches: 1  Memory Usage: 21503kB
+                           Buffers: shared hit=2332 read=39087 written=11
+                           ->  Bitmap Heap Scan on part  (cost=5722.92..54201.42 rows=295095 width=40) (actual time=281.070..4167.297 rows=297028 loops=1)
+                                 Recheck Cond: (p_size = ANY ('{38,21,23,32,33,8,47,31}'::integer[]))
+                                 Filter: ((p_brand <> 'Brand#24'::bpchar) AND ((p_type)::text !~~ 'LARGE ANODIZED%'::text))
+                                 Rows Removed by Filter: 23109
+                                 Buffers: shared hit=2332 read=39087 written=11
+                                 ->  Bitmap Index Scan on part_p_size_idx  (cost=0.00..5649.15 rows=318260 width=0) (actual time=259.163..259.163 rows=320137 loops=1)
+                                       Index Cond: (p_size = ANY ('{38,21,23,32,33,8,47,31}'::integer[]))
+                                       Buffers: shared hit=12 read=889
+ Total runtime: 56642.453 ms
+(32 rows)
+
+COMMIT;
+COMMIT

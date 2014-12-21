@@ -1,0 +1,67 @@
+BEGIN;
+BEGIN
+EXPLAIN (ANALYZE, BUFFERS)
+select
+	l_orderkey,
+	sum(l_extendedprice * (1 - l_discount)) as revenue,
+	o_orderdate,
+	o_shippriority
+from
+	customer,
+	orders,
+	lineitem
+where
+	c_mktsegment = 'FURNITURE'
+	and c_custkey = o_custkey
+	and l_orderkey = o_orderkey
+	and o_orderdate < date '1995-03-13'
+	and l_shipdate > date '1995-03-13'
+group by
+	l_orderkey,
+	o_orderdate,
+	o_shippriority
+order by
+	revenue desc,
+	o_orderdate
+LIMIT 10;
+                                                                                              QUERY PLAN                                                                                               
+-------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
+ Limit  (cost=2775795.23..2775795.26 rows=10 width=20) (actual time=155460.542..155460.547 rows=10 loops=1)
+   Buffers: shared hit=660324 read=714556 written=5
+   ->  Sort  (cost=2775795.23..2783698.89 rows=3161464 width=20) (actual time=155460.537..155460.540 rows=10 loops=1)
+         Sort Key: (sum((lineitem.l_extendedprice * (1::double precision - lineitem.l_discount)))), orders.o_orderdate
+         Sort Method: top-N heapsort  Memory: 25kB
+         Buffers: shared hit=660324 read=714556 written=5
+         ->  HashAggregate  (cost=2675862.49..2707477.13 rows=3161464 width=20) (actual time=155355.840..155437.175 rows=113487 loops=1)
+               Buffers: shared hit=660318 read=714556 written=5
+               ->  Hash Join  (cost=631529.11..2628440.53 rows=3161464 width=20) (actual time=41977.727..154584.337 rows=299150 loops=1)
+                     Hash Cond: (lineitem.l_orderkey = orders.o_orderkey)
+                     Buffers: shared hit=660318 read=714556 written=5
+                     ->  Seq Scan on lineitem  (cost=0.00..1842434.86 rows=32763179 width=12) (actual time=0.057..83903.279 rows=32415329 loops=1)
+                           Filter: (l_shipdate > '1995-03-13'::date)
+                           Rows Removed by Filter: 27629464
+                           Buffers: shared hit=457396 read=623986
+                     ->  Hash  (cost=613165.16..613165.16 rows=1469116 width=12) (actual time=41974.685..41974.685 rows=1457292 loops=1)
+                           Buckets: 262144  Batches: 1  Memory Usage: 62619kB
+                           Buffers: shared hit=202922 read=90570 written=5
+                           ->  Hash Join  (cost=49665.89..613165.16 rows=1469116 width=12) (actual time=3461.934..39910.235 rows=1457292 loops=1)
+                                 Hash Cond: (orders.o_custkey = customer.c_custkey)
+                                 Buffers: shared hit=202922 read=90570 written=5
+                                 ->  Seq Scan on orders  (cost=0.00..447376.99 rows=7376809 width=16) (actual time=0.015..15869.252 rows=7284475 loops=1)
+                                       Filter: (o_orderdate < '1995-03-13'::date)
+                                       Rows Removed by Filter: 7730525
+                                       Buffers: shared hit=202816 read=54250 written=5
+                                 ->  Hash  (cost=45931.76..45931.76 rows=298730 width=4) (actual time=3461.668..3461.668 rows=299496 loops=1)
+                                       Buckets: 32768  Batches: 1  Memory Usage: 10530kB
+                                       Buffers: shared hit=106 read=36320
+                                       ->  Bitmap Heap Scan on customer  (cost=6919.64..45931.76 rows=298730 width=4) (actual time=214.040..3275.734 rows=299496 loops=1)
+                                             Recheck Cond: (c_mktsegment = 'FURNITURE'::bpchar)
+                                             Buffers: shared hit=106 read=36320
+                                             ->  Bitmap Index Scan on customer_c_mktsegment_c_custkey_idx  (cost=0.00..6844.96 rows=298730 width=0) (actual time=191.940..191.940 rows=299496 loops=1)
+                                                   Index Cond: (c_mktsegment = 'FURNITURE'::bpchar)
+                                                   Buffers: shared read=1151
+ Total runtime: 155508.794 ms
+(35 rows)
+
+COMMIT;
+COMMIT
